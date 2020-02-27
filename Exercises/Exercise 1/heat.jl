@@ -41,7 +41,7 @@ c_heat = [420,250]
 #Declare Gurobi model
 model_heat = Model(with_optimizer(Gurobi.Optimizer))
 
-@variable(model_heat, 0<=p_chp[i in units_chp, t in periods]) #Heat production for chp over period and scenario
+@variable(model_heat, 0<=p_chp[j in units_chp, t in periods]) #Heat production for chp over period and scenario
 @variable(model_heat, 0<=p_heat[i in units_heat, t in periods, s in scenarios]) #Heat production for each unit, period and scenario
 
 #@variable(model_heat, 0<=s_in[t in periods, s in scenarios]) #Storage inflow per period and scenario
@@ -52,14 +52,13 @@ model_heat = Model(with_optimizer(Gurobi.Optimizer))
 #@objective(model_heat, Min, sum(c_chp[j]*p_chp[j,t] for j in units_chp for t in periods)-sum(pi[s]*e[t,s]*(1/ϕ_chp)*p_chp[j,t] for j in units_chp for t in periods for s in scenarios)+sum(pi[s]*c_heat[i,t]*p_heat[i,t,s] for i in units_heat for t in periods for s in scenarios))
 #@objective(model_heat, Min,sum(c_chp[j]*p_chp[j,t] - pi[s]*e[t,s]*(1/ϕ_chp)*p_chp[j,t] + pi[s]*c_heat[i,t]*p_heat[i,t,s] for i in units_heat for j in units_chp for t in periods for s in scenarios))
 
-function Σ(x)
-	return sum(x)
-end
+Σ(x) = sum(x)
 
 @objective(model_heat, Min, Σ( Σ(c_chp[j]*p_chp[j,t] - Σ(π[s]*e[t][s]*(1/ϕ_chp)*p_chp[j,t] for s in scenarios) for j in units_chp) + Σ(π[s]*c_heat[i]*p_heat[i,t,s] for i in units_heat for s in scenarios) for t in periods))
 
 #Max heat unit production
-@constraint(model_heat, max_heat_production[i in heat_units, t in periods], q_h[i,t] <= qmax[i])
+@constraint(model_heat, max_heat_production[i in units_heat, t in periods], p_heat[i,t] <= qmax_heat[i])
+@constraint(model_heat, max_chp_production[j in units_chp, t in periods], p_chp[j,t] <= qmax_chp[j])
 
 #Demand satisfaction
 @constraint(model_heat, demand_satisfaction[t in periods, s in scenarios],
