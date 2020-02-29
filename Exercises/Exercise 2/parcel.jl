@@ -55,3 +55,84 @@ Omega = Dict(1 => Dict(1 => [1,2,3,4], 2 => [1,2], 3 => [1]),
     2 => Dict(1 => [1,2,3,4], 2 => [1,2], 3 => [2]),
     3 => Dict(1 => [1,2,3,4], 2 => [3,4], 3 => [3]),
     4 => Dict(1 => [1,2,3,4], 2 => [3,4], 3 => [4]))
+
+    #Declare Gurobi model
+model_parcel = Model(with_optimizer(Gurobi.Optimizer))
+
+#Variable definition
+@variable(model_parcel, 0 <= q_chp[j in chp_units, t in periods])   #Heat production for each CHP unit and period
+@variable(model_parcel, 0 <= q_h[i in heat_units, t in periods, s in scenarios]) #Heat production for each unit, period and scenario
+
+#Minimize expected cost
+@objective(
+    model_heat,
+    Min,
+    sum(chp_c * q_chp[j, t] for j in chp_units for t in periods) - sum(
+        prob[s] * e[t][s] * (1.0 / chp_phi) * q_chp[j, t] for j in chp_units
+        for t in periods
+        for s in scenarios
+    ) + sum(
+        prob[s] * c[i] * q_h[i, t, s] for i in heat_units for t in periods
+        for s in scenarios
+    )
+)
+
+#Max CHP production
+@constraint(
+    model_heat,
+    max_chp_production[j in chp_units, t in periods],
+    q_chp[j, t] <= chp_qmax
+)
+
+#Max heat unit production
+@constraint(
+    model_heat,
+    max_heat_production[i in heat_units, t in periods, s in scenarios],
+    q_h[i, t, s] <= qmax[i]
+)
+
+#Demand satisfaction
+@constraint(
+    model_heat,
+    demand_satisfaction[t in periods, s in scenarios],
+    sum(q_chp[j, t] for j in chp_units) + sum(q_h[i, t, s] for i in heat_units) == d[t][s]
+)
+
+
+#Write model to an LP file for debugging
+lp_model = MathOptFormat.LP.Model()
+MOI.copy_to(lp_model, backend(model_heat))
+MOI.write_to_file(lp_model, "heat_model.lp")
+
+
+optimize!(model_heat)
+
+
+if termination_status(model_heat) == MOI.OPTIMAL
+    println("Optimal solution found")
+
+    println("Heat production:")
+    println("t\tCHP\t\tGB\t\t\tWCB\t")
+    println("\t\t1\t2\t3\t1\t2\t3")
+    for t in periods
+        output_line = "$t\t"
+        for j in chp_units
+            output_line *= "$(@sprintf("%.2f",(value.(q_chp[j,t]))))\t"
+        end
+
+        for j in heat_units
+            for s in scenarios
+                output_line *= "$(@sprintf("%.2f",value.(q_h[j,t,s])))\t"
+            end
+        end
+
+        output_line *= "\n"
+        print(output_line)
+    end
+
+    @printf "\nObjective value: %0.3f\n\n" objective_value(model_heat)
+
+
+else
+    error("No solution.")
+end
