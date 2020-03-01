@@ -73,3 +73,17 @@ prob = [0.15, 0.06,0.4,0.3,0.09]
 
 #Minimum distance between locations
 D = 150
+
+#Declare Gurobi model
+model_furniture = Model(with_optimizer(Gurobi.Optimizer))
+
+#Variable definition
+@variable(model_furniture, 0<=b[i in I, l in L], Bin) #Build and capacity level
+@variable(model_furniture, 0<=a[i in I, m in M], Bin) #Assignment market to location
+
+# Building only at one location
+@constraint(model_furniture, build[i in I], sum(b[i,l] for i in I) <=5)
+# Assignment of capacity level
+@constraint(model_furniture, capacitylevel[i in I, l in L], sum(b[w,d] for i in I for l in L) <=1)
+# Assignment warehouse and district
+@constraint(model_furniture, assignment[m in M], sum(a[i,m] for i in I) ==1)
