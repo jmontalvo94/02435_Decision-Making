@@ -77,13 +77,17 @@ D = 150
 #Declare Gurobi model
 model_furniture = Model(with_optimizer(Gurobi.Optimizer))
 
-#Variable definition
-@variable(model_furniture, 0<=b[i in I, l in L], Bin) #Build and capacity level
-@variable(model_furniture, 0<=a[i in I, m in M], Bin) #Assignment market to location
+# Variable definition
+@variable(model_furniture, 0<=b[i in I], Bin) # Build at location i
+@variable(model_furniture, 0<=c[i in I, l in L], Bin) # Assign level to location i
+@variable(model_furniture, 0<=a[i in I, m in M], Bin) # Assign market m to location i
 
-# Building only at one location
-@constraint(model_furniture, build[i in I], sum(b[i,l] for i in I) <=5)
+# Objective function
+
 # Assignment of capacity level
-@constraint(model_furniture, capacitylevel[i in I, l in L], sum(b[w,d] for i in I for l in L) <=1)
-# Assignment warehouse and district
-@constraint(model_furniture, assignment[m in M], sum(a[i,m] for i in I) ==1)
+@constraint(model_furniture, capacitylevel[i in I], b[i] == sum(c[i,l] for l in L))
+# Assignment of markets
+@constraint(model_furniture, marketassignment[i in I], length(M)*b[i] >= sum(a[i,m] for m in M))
+@constraint(model_furniture, onemarketperlocation[m in M], sum(a[i,m] for i in I) == 1)
+# Distance between Locations
+@constraint(model_furniture, dlocations[i in I, j in I; i!=j], d_location[i][j]*b[i] >= D)
