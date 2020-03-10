@@ -85,19 +85,19 @@ model_furniture = Model(with_optimizer(Gurobi.Optimizer))
 @variable(model_furniture, 0<=cap[i in I, l in L], Bin) # Assign level to location i
 @variable(model_furniture, 0<=assignment[i in I, m in M], Bin) # Assign market m to location i
 # Positive variables
-@variable(model_furniture, 0<=s_in[i in I, f in F, t in T, s in S]) # Storage inflow
-@variable(model_furniture, 0<=s_out[i in I, f in F, t in T, s in S]) # Storage outflow
-@variable(model_furniture, 0<=s_level[i in I, f in F, t in T, s in S]) # Storage level
-@variable(model_furniture, 0<=q_p[i in I, f in F, t in T, s in S]) # Produced units
-@variable(model_furniture, 0<=q_t[i in I, j in I, f in F, t in T, s in S]) # Transported units
-@variable(model_furniture, 0<=q_s[i in I, f in F, m in M, t in T, s in S]) # Supplied units
+@variable(model_furniture, 0<=s_in[f in F, i in I, t in T, s in S]) # Storage inflow
+@variable(model_furniture, 0<=s_out[f in F, i in I, t in T, s in S]) # Storage outflow
+@variable(model_furniture, 0<=s_level[f in F, i in I, t in T, s in S]) # Storage level
+@variable(model_furniture, 0<=q_p[f in F, i in I, t in T, s in S]) # Produced units
+@variable(model_furniture, 0<=q_t[f in F, i in I, j in I, t in T, s in S]) # Transported units
+@variable(model_furniture, 0<=q_s[f in F, i in I, m in M, t in T, s in S]) # Supplied units
 
 # Objective function
 @objective(model_furniture, Min,
     sum(c_operational[i]*build[i]*length(T) for i in I)
     + sum(cap[i,l]*c_building[l] for i in I for l in L)
-    + sum(prob[s]*c_transport*q_t[i,j,f,t,s]*d_location[i][j] for i in I for j in I for f in F for t in T for s in S)
-    + sum(prob[s]*c_transport*q_s[i,f,m,t,s]*d_market[m][i] for i in I for f in F for m in M for t in T for s in S))
+    + sum(prob[s]*c_transport*q_t[f,i,j,t,s]*d_location[i][j] for f in F for i in I for j in I for t in T for s in S)
+    + sum(prob[s]*c_transport*q_s[f,i,m,t,s]*d_market[m][i] for f in F for i in I for m in M for t in T for s in S))
 
 # Assignment of capacity level
 @constraint(model_furniture, capacitylevel[i in I], build[i] == sum(cap[i,l] for l in L))
@@ -105,22 +105,22 @@ model_furniture = Model(with_optimizer(Gurobi.Optimizer))
 @constraint(model_furniture, location_connection[i in I], sum(assignment[i,m] for m in M) <= length(M)*build[i])
 @constraint(model_furniture, onemarketperlocation[m in M], sum(assignment[i,m] for i in I) == 1)
 # Distance between locations
-@constraint(model_furniture, distance_btw_locations[i in I, j in I; i!=j], d_location[i][j] - D * (-1+build[i]+build[j]) >= 0)
+@constraint(model_furniture, distance_btw_locations[i in I, j in I; i!=j], d_location[i][j] >= D * (-1+build[i]+build[j]))
 # Maximum production
-@constraint(model_furniture, max_production[i in I, t in T, s in S], sum(q_p[i,f,t,s] for f in F) <= sum(cap[i,l]*k_production[l] for l in L))
+@constraint(model_furniture, max_production[i in I, t in T, s in S], sum(q_p[f,i,t,s] for f in F) <= sum(cap[i,l]*k_production[l] for l in L))
 # Maximum storage
-@constraint(model_furniture, max_storage[i in I, t in T, s in S], sum(s_level[i,f,t,s] for f in F) <= sum(cap[i,l]*k_storage[l] for l in L))
+@constraint(model_furniture, max_storage[i in I, t in T, s in S], sum(s_level[f,i,t,s] for f in F) <= sum(cap[i,l]*k_storage[l] for l in L))
 # Location balance equation
-@constraint(model_furniture, location_balance[i in I, f in F, t in T, s in S],
-sum(q_s[i,f,m,t,s] for m in M) == q_p[i,f,t,s] + s_out[i,f,t,s] - s_in[i,f,t,s]
-+ sum(q_t[j,i,f,t,s] for j in I if j!=i) - sum(q_t[i,k,f,t,s] for k in I if k!=i))
+@constraint(model_furniture, location_balance[f in F, i in I, t in T, s in S],
+    sum(q_s[f,i,m,t,s] for m in M) == q_p[f,i,t,s] + s_out[f,i,t,s] - s_in[f,i,t,s]
+    + sum(q_t[f,j,i,t,s] for j in I if j!=i) - sum(q_t[f,i,k,t,s] for k in I if k!=i))
 # Market balance equation
-@constraint(model_furniture, market_balance[i in I, f in F, t in T, s in S, m in M], q_s[i,f,m,t,s] == b[m,f,t,s]*assignment[i,m])
+@constraint(model_furniture, market_balance[f in F, i in I, m in M, t in T, s in S], q_s[f,i,m,t,s] == b[m,f,t,s]*assignment[i,m])
 # Storage balance
-@constraint(model_furniture, storage_balance[i in I, f in F, t in collect(2:10), s in S], s_level[i,f,t,s]-s_level[i,f,t-1,s]-s_in[i,f,t,s]+s_out[i,f,t,s]==0)
-@constraint(model_furniture, storage_balance_init[i in I, f in F, s in S], s_level[i,f,1,s]-s_in[i,f,1,s]+s_out[i,f,1,s]==0)
+@constraint(model_furniture, storage_balance[f in F, i in I, t in collect(2:10), s in S], s_level[f,i,t,s] == s_level[f,i,t-1,s] + s_in[f,i,t,s] - s_out[f,i,t,s])
+@constraint(model_furniture, storage_balance_init[f in F, i in I, s in S], s_level[f,i,1,s] == s_in[f,i,1,s] - s_out[f,i,1,s])
 # Limit transportation between opened locations only
-@constraint(model_furniture, transport_btw_locations[i in I, j in I, f in F, t in T, s in S], q_t[i,j,f,t,s] <= bigM*build[i])
+@constraint(model_furniture, transport_btw_locations[f in F, i in I, j in I, t in T, s in S], q_t[f,i,j,t,s] <= bigM*build[i])
 
 # Run model
 optimize!(model_furniture)
