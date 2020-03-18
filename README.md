@@ -1,4 +1,4 @@
-# Decision-Making under Uncertainty
+# 02435 - Decision-Making under Uncertainty
 This repository is intended for the individual projects of the course '02435 - Decision-Making under Uncertainty' from the Technical University of Denmark (DTU). It contains all the data, scripts, literature, and reports for each assignment and exercises.
 
 # Program
