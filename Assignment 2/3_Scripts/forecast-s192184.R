@@ -15,30 +15,30 @@ library(scales)
 
 # Create functions --------------------------------------------------------
 
-plot_series <- function(series){
-  plot(series, type='l', col='firebrick1', lwd=2, main='', xlab='Time Period', ylab='Price [DKK/m2]')
+plot_series <- function(series,yl='Price [DKK/m2]'){
+  plot(series, type='l', col='firebrick1', lwd=2, main='', xlab='Time Period', ylab=yl)
 }
 
-plot_acf <- function(series){
-  acf(series, main='ACF for Data', length(series)/2)
+plot_acf <- function(series, name='Data'){
+  acf(series, main=paste('ACF for',name), length(series)/2)
 }
 
-plot_pacf <- function(series){
-  pacf(series, main='PACF for Data', length(series)/2)
+plot_pacf <- function(series, name='Data'){
+  pacf(series, main=paste('PACF for',name), length(series)/2)
 }
 
-plot_hist_norm <- function(model){
-  hist(model$residuals, prob=T, breaks=20, col='deepskyblue1', main='Histogram Residuals', xlab='Residuals')
-  curve(dnorm(x, mean(model$residuals), sd(model$residuals)), add=TRUE, col="red", lwd=2)
+plot_hist_norm <- function(model, name='Data'){
+  hist(model$residuals, prob=T, breaks=20, col='dodgerblue4', main=paste('Residuals for',name), xlab='Residuals')
+  curve(dnorm(x, mean(model$residuals), sd(model$residuals)), add=TRUE, col="cornflowerblue", lwd=2)
 }
 
-plot_qq <- function(model){
-  qqnorm(model$residuals,main='Q-Q plot residuals')
+plot_qq <- function(model, name='Data'){
+  qqnorm(model$residuals,main=paste('Q-Q plot for', name), pch=19, col='darkblue')
   qqline(model$residuals)
 }
 
-plot_residuals <- function(model){
-  plot(c(fitted(model)),c(model$residuals),pch=20,col='red',xlab = 'Fitted Values',ylab='Residuals',main='Residual vs Fitted residuals')
+plot_residuals <- function(model, name='Data'){
+  plot(c(fitted(model)),c(model$residuals),pch=19,col='darkblue',xlab = 'Fitted Values',ylab='Residuals',main=paste('Residual vs Fitted residuals for',name))
   abline(h=0)
 }
 
@@ -51,14 +51,14 @@ path <- getwd()
 # Set fix random generator numbers
 set.seed(0)
 
-# Set train/test split
+# Set train/test split to 1 (all data used to get the model)
 train_test_split <- 1
 
 # Read data
-df <- read.csv(paste(path,'prices.csv'), sep=';')
+df <- read.csv(paste0(path,'prices.csv'), sep=';')
 
 
-# Stationary --------------------------------------------------------------
+# Exploratory Analysis --------------------------------------------------------------
 
 # Split data into train/test sets
 sample_size <- floor(train_test_split * nrow(df))
@@ -74,7 +74,7 @@ stdev_vector <- vector(length=4)
 indexes <- vector(mode="list", length=4)
 last <- 0
 
-# Split train set into four periods
+# Split train set into four splits to see mean and variance
 splitted_train <- split(train, rep(1:4, length.out=length(train), each=ceiling(length(train)/4)))
 for (i in 1:4) {
   indexes[[i]] <- seq(from=last+1, length.out=length(splitted_train[[i]]))
@@ -88,8 +88,9 @@ for (i in 1:4) {
   stdev_vector[i] <- sqrt(variance_vector[i])
 }
 
-# Plot series
-plot(train, type='l', col='firebrick1', lwd=2, main='', xlab='Time Period', ylab='Price [DKK/m2]')
+# Plot series with and without split check
+plot_series(train)
+plot_series(train)
 for (i in 1:4) {
   mtext(paste('Split ',i), side=3, line=1, at=mean(indexes[[i]]))
   abline(v=max(indexes[[i]]), col='gray', lty=5)
@@ -99,23 +100,35 @@ for (i in 1:4) {
   abline(lm(zip2000 ~ Period, data=df), col=alpha('gray',0.5), lwd=2, lty=2)
 }
 
-# Time Series Analysis ----------------------------------------------------
+# Fitting the model ----------------------------------------------------
 
 # ACF and PACF on clean data
-plot_acf(train)
-plot_pacf(train)
+par(mfrow=c(1,2))
+plot_acf(train,'prices')
+plot_pacf(train,'prices')
+
+# ACF and PACF on differentiated data
+diff_price <- diff(train, 1)
+plot_acf(diff_price,'diff(prices)')
+plot_pacf(diff_price,'diff(prices)')
+par(mfrow=c(1,1))
+plot_series(diff_price,'diff(prices)')
 
 # ACF and PACF on log of data
 log_train <- log(train)
-plot_acf(log_train)
-plot_pacf(log_train)
-plot_series(log_train)
+par(mfrow=c(1,2))
+plot_acf(log_train,'log(prices)')
+plot_pacf(log_train,'log(prices)')
+par(mfrow=c(1,1))
+plot_series(log_train,'log(prices)')
 
 # ACF and PACF on transformed and differentiated data
-diff_price <- diff(log_train, 1)
-plot_acf(diff_price)
-plot_pacf(diff_price)
-plot_series(diff_price)
+diff_logprice <- diff(log_train, 1)
+par(mfrow=c(1,2))
+plot_acf(diff_logprice,'diff(log(prices))')
+plot_pacf(diff_logprice,'diff(log(prices))')
+par(mfrow=c(1,1))
+plot_series(diff_logprice,'diff(log(prices))')
 
 # Create ARIMA order=(p,d,q)
 p = 1 # AR(p)
@@ -123,38 +136,63 @@ d = 1 # Differentiate order
 q = 4 # MA(q)
 
 # Create time series models
-TS_Model <- arima(log_train, order = c(p,d,q))
+TS_Model1 <- arima(log_train, order = c(p,d,q))
+TS_Model2 <- arima(log_train, order = c(p,d,q+1))
 TS_Model_auto <- auto.arima(log_train)
 
 
-# Checking residuals ------------------------------------------------------
+# Diagnostics ------------------------------------------------------
 
 # Plot histogram with normal distribution
-plot_hist_norm(TS_Model)
-plot_hist_norm(TS_Model_auto)
+par(mfrow=c(1,3))
+plot_hist_norm(TS_Model1, 'TS_Model1')
+plot_hist_norm(TS_Model2, 'TS_Model2')
+plot_hist_norm(TS_Model_auto,'TS_Model_auto')
 
-plot_qq(TS_Model)
-plot_qq(TS_Model_auto)
+# Plot qq-plot
+plot_qq(TS_Model1, 'TS_Model1')
+plot_qq(TS_Model2, 'TS_Model2')
+plot_qq(TS_Model_auto,'TS_Model_auto')
 
-plot_residuals(TS_Model)
-plot_residuals(TS_Model_auto)
+# Plot residuals
+plot_residuals(TS_Model1, 'TS_Model1')
+plot_residuals(TS_Model2, 'TS_Model2')
+plot_residuals(TS_Model_auto,'TS_Model_auto')
 
-plot_acf(TS_Model$residuals)
-plot_acf(TS_Model_auto$residuals)
+# Plot ACF of residuals
+plot_acf(TS_Model1$residuals, 'TS_Model1 residuals')
+plot_acf(TS_Model2$residuals, 'TS_Model2 residuals')
+plot_acf(TS_Model_auto$residuals, 'TS_Model_auto residuals')
 
-TS_Model$aic
+# Get AIC from each model
+TS_Model1$aic
+TS_Model2$aic
 TS_Model_auto$aic
 
-# Prediction --------------------------------------------------------------
+# Predictions --------------------------------------------------------------
 
-# Predict n.ahead steps:
-predictions <- predict(TS_Model, n.ahead=length(test)+1)
+# Predict n.ahead steps (1)
+predictions <- predict(TS_Model1, n.ahead=length(test)+1)
 
-# Plot predictions:
-plot(train, type='l', col='red', lwd=2, main='Prediction', xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(1,nrow(df)), ylim = c(0,max(exp(predictions$pred+predictions$se))))
-#lines(c((length(train)+1):(length(df$zip2000))), test, lwd=2, col='gray60')
-lines(c((length(train)+1):(length(train)+1)), exp(predictions$pred), lwd=2, col='limegreen')
-lines(c((length(train)+1):(length(train)+1)), exp(predictions$pred+predictions$se), lwd=2, lty=2, col='limegreen')
-lines(c((length(train)+1):(length(train)+1)), exp(predictions$pred-predictions$se), lwd=2, lty=2, col='limegreen')
-abline(v=length(train), col='grey')
-legend('topleft',legend=c('Past observations','Real Observations','Mean Forecast','95% Conf. Intervals Forecast'),col=c('red','gray60','limegreen','limegreen'),lwd=c(2,2,2,2),lty=c(1,1,1,2))
+# Plot predictions with confidence intervals
+par(mfrow=c(1,1))
+plot(train, type='l', col='darkblue', lwd=2, main='Price forecast', xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(1,nrow(df)), ylim = c(0,max(exp(predictions$pred+predictions$se))))
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1])), lwd=2, col='red')
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]+predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]-predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+abline(v=length(train), col=alpha('grey',0.8), lty=2)
+legend('topleft',legend=c('Past observations','Forecast','95% Conf. Intervals Forecast'),col=c('darkblue','red','salmon'), lwd=c(2,2,2),lty=c(1,1,3))
+
+# Plot predictions with confidence intervals (ZOOMED)
+par(mfrow=c(1,1))
+plot(train, type='l', col='darkblue', lwd=2, main='Price forecast (zoom)', xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(100,nrow(df)+1), ylim = c(38000,max(exp(predictions$pred+predictions$se))))
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1])), lwd=2, col='red')
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]+predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]-predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+abline(v=length(train), col=alpha('grey',0.8), lty=2)
+legend('topleft',legend=c('Past observations','Forecast','95% Conf. Intervals Forecast'),col=c('darkblue','red','salmon'), lwd=c(2,2,2),lty=c(1,1,3))
+
+# Print prediction and confidence intervals
+exp(predictions$pred[1])
+exp(predictions$pred[1]+predictions$se[1])
+exp(predictions$pred[1]-predictions$se[1])
