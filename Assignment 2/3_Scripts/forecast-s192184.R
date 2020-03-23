@@ -1,6 +1,6 @@
 #########################################################################
-## Task 1:                                                             ##
-## Linear Time Series Analysis                                         ##
+## Task 1 and 2:                                                       ##
+## Linear Time Series Analysis and Scenario generation                 ##
 ##                                                                     ##
 ## Author:          Jorge Montalvo Arvizu                              ##
 ## Student Number:  s192184                                            ##
@@ -42,6 +42,28 @@ plot_residuals <- function(model, name='Data'){
   abline(h=0)
 }
 
+plot_residuals <- function(model, name='Data'){
+  plot(c(fitted(model)),c(model$residuals),pch=19,col='darkblue',xlab = 'Fitted Values',ylab='Residuals',main=paste('Residual vs Fitted residuals for',name))
+  abline(h=0)
+}
+
+plot_predictions <- function(model=given_model, main_add='', from_x=1, from_y=0, scenarios_data, scenarios_add=FALSE, color, num_scenarios, reduced=FALSE){
+  plot(train, type='l', col='darkblue', lwd=2, main=paste('Price forecast',main_add), xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(from_x,nrow(df)), ylim = c(from_y,max(exp(predictions$pred+predictions$se))))
+  if (scenarios_add) {
+    for(w in 1:num_scenarios){
+      lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),scenarios_data[,w]), col=color[w], type="l", lty=1, lwd=2)
+      if (reduced){
+        legend('topleft',legend=c('Past observations',paste0(rep('Scenario ',10),seq(1:10))), col=c('darkblue',color), lwd=c(2,rep(2,10)),lty=c(1,rep(1,10)), y.intersp=0.8)
+      }
+    }
+  } else {
+    lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1])), lwd=2, col='red')
+    lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]+predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+    lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]-predictions$se[1])), lwd=2, lty='dotted', col='salmon')
+    legend('topleft',legend=c('Past observations','Forecast','95% Conf. Intervals Forecast'),col=c('darkblue','red','salmon'), lwd=c(2,2,2),lty=c(1,1,3))
+  }
+  abline(v=length(train), col=alpha('grey',0.8), lty=2)
+}
 
 # Load data ---------------------------------------------------------------
 
@@ -99,6 +121,7 @@ for (i in 1:4) {
   segments(min(indexes[[i]]), mean_vector[i]-stdev_vector[i], x1=max(indexes[[i]]), y1=mean_vector[i]-stdev_vector[i], col=alpha('cornflowerblue', 0.2), lwd=2)
   abline(lm(zip2000 ~ Period, data=df), col=alpha('gray',0.5), lwd=2, lty=2)
 }
+
 
 # Fitting the model ----------------------------------------------------
 
@@ -169,30 +192,66 @@ TS_Model1$aic
 TS_Model2$aic
 TS_Model_auto$aic
 
+# Read summaries
+summary(TS_Model1)
+summary(TS_Model2)
+summary(TS_Model_auto)
+
+model <- TS_Model1
+
 # Predictions --------------------------------------------------------------
 
 # Predict n.ahead steps (1)
-predictions <- predict(TS_Model1, n.ahead=length(test)+1)
+n <- 1
+predictions <- predict(model, n.ahead=length(test)+n)
 
 # Plot predictions with confidence intervals
 par(mfrow=c(1,1))
-plot(train, type='l', col='darkblue', lwd=2, main='Price forecast', xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(1,nrow(df)), ylim = c(0,max(exp(predictions$pred+predictions$se))))
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1])), lwd=2, col='red')
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]+predictions$se[1])), lwd=2, lty='dotted', col='salmon')
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]-predictions$se[1])), lwd=2, lty='dotted', col='salmon')
-abline(v=length(train), col=alpha('grey',0.8), lty=2)
-legend('topleft',legend=c('Past observations','Forecast','95% Conf. Intervals Forecast'),col=c('darkblue','red','salmon'), lwd=c(2,2,2),lty=c(1,1,3))
-
-# Plot predictions with confidence intervals (ZOOMED)
-par(mfrow=c(1,1))
-plot(train, type='l', col='darkblue', lwd=2, main='Price forecast (zoom)', xlab='Time Period', ylab='Price [DKK/m2]', xlim=c(100,nrow(df)+1), ylim = c(38000,max(exp(predictions$pred+predictions$se))))
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1])), lwd=2, col='red')
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]+predictions$se[1])), lwd=2, lty='dotted', col='salmon')
-lines(c(tail(samples,1),tail(samples,1)+1), y=c(tail(train,1),exp(predictions$pred[1]-predictions$se[1])), lwd=2, lty='dotted', col='salmon')
-abline(v=length(train), col=alpha('grey',0.8), lty=2)
-legend('topleft',legend=c('Past observations','Forecast','95% Conf. Intervals Forecast'),col=c('darkblue','red','salmon'), lwd=c(2,2,2),lty=c(1,1,3))
+plot_predictions(model)
+plot_predictions(model, main_add = 'zoom', from_x=90, from_y = 30000)
 
 # Print prediction and confidence intervals
 exp(predictions$pred[1])
 exp(predictions$pred[1]+predictions$se[1])
 exp(predictions$pred[1]-predictions$se[1])
+
+
+# Scenarios generation ----------------------------------------------------
+
+# Define number of total scenarios
+omega <- 100
+
+# Allocate memory to scenarios matrix
+scenarios <- matrix(0, nrow=n, ncol=omega)
+
+# Predict 100 scenarios with selected model
+for(w in 1:omega){
+  scenarios[n,w]  <- simulate(TS_Model1, nsim=n, future=TRUE, seed=w)
+}
+
+# Plot the scenarios
+colors <- rainbow(omega)
+plot_predictions(model, main_add='scenarios', scenarios_data=exp(scenarios), scenarios_add=TRUE, color=colors, num_scenarios=omega)
+plot_predictions(model, main_add='scenarios (zoom)', from_x=90, from_y=30000, scenarios_data=exp(scenarios), scenarios_add=TRUE, color=colors, num_scenarios=omega)
+
+
+# Scenarios reduction -----------------------------------------------------
+
+# Define reduced scenarios
+reduced_omega <- 10
+
+# Create clustering with PAM method
+clustering <- pam(t(scenarios),reduced_omega)
+reduced_scenarios <- t(clustering$medoids) 
+
+# Plot reduced set of scenarios
+colors <- rainbow(reduced_omega)
+plot_predictions(model, main_add='- Reduced scenarios', scenarios_data=exp(reduced_scenarios), scenarios_add=TRUE, color=colors, num_scenarios=reduced_omega, reduced=TRUE)
+plot_predictions(model, main_add='- Reduced scenarios (zoom)', from_x=90, from_y=30000, scenarios_data=exp(reduced_scenarios), scenarios_add=TRUE, color=colors, num_scenarios=reduced_omega, reduced=TRUE)
+
+# Probability Distribution for reduced number of scenarios
+probability <- 1/length(1:omega)
+reduced_probability <- 0
+for (i in 1:reduced_omega) {
+  reduced_probability[i] <- probability*length(clustering$clustering[clustering$clustering==i])
+}
