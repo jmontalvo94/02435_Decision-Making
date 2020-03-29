@@ -51,7 +51,7 @@ model_investment = Model(with_optimizer(Gurobi.Optimizer))
 # Budget balance
 @constraint(model_investment, budget_balance, sum(p_init[i]*x[i] for i in I) == B)
 # x and y value
-@constraint(model_investment, x_y[i in I], y[i] <= x[i])
+@constraint(model_investment, x_y[i in I], y[i] == x[i])
 # CVaR
 @constraint(model_investment, cvar[s in S], η - (-sum(p_init[i]*x[i] for i in I) +
     sum(p[i,s]*y[i] for i in I)) <= δ[s])
