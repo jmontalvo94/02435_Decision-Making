@@ -1,3 +1,6 @@
+# Author:           Jorge Montalvo Arvizu
+# Student number:   s192184
+
 #Import packages
 using JuMP
 using Gurobi
@@ -33,7 +36,7 @@ prob = [0.09 0.13 0.08 0.10 0.08 0.06 0.07 0.10 0.05 0.07 0.12 0.05]
 β = 0.2
 α = 0.9
 
-## Model
+## Two-stage stochastic model with CVaR
 
 # Declare Gurobi model
 model_investment = Model(with_optimizer(Gurobi.Optimizer))
@@ -50,7 +53,7 @@ model_investment = Model(with_optimizer(Gurobi.Optimizer))
 
 # Budget balance
 @constraint(model_investment, budget_balance, sum(p_init[i]*x[i] for i in I) == B)
-# x and y value
+# Buy and sell value
 @constraint(model_investment, x_y[i in I], y[i] == x[i])
 # CVaR
 @constraint(model_investment, cvar[s in S], η - (-sum(p_init[i]*x[i] for i in I) +
@@ -59,6 +62,7 @@ model_investment = Model(with_optimizer(Gurobi.Optimizer))
 # Optimize and get objective value
 optimize!(model_investment)
 
+# Calculate result variables
 amount = value.(x).data
 investment = transpose(amount)*p_init
 future = sum(prob[s]*p[i,s]*amount[i] for i in I for s in S)
