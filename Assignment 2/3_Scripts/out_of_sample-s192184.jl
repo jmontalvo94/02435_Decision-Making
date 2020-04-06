@@ -78,4 +78,4 @@ yaxis!("Financial gain [DKK]")
 title!("Stochastic vs. Expected Value solution")
 
 # Histogram to see distribution
-histogram([df.ExpectedValueSolution df.StochasticSolution], nbins=20, labels=permutedims(names(df)[2:3]))
+histogram([df.ExpectedValueSolution df.StochasticSolution], nbins=30, labels=permutedims(names(df)[2:3]))
