@@ -72,10 +72,22 @@ CSV.write("sample-solutions-s192184.csv", df)
 ## Data Visualization
 
 # Plot both models
-plot([df.ExpectedValueSolution df.StochasticSolution], w=2, labels=permutedims(names(df)[2:3]))
+plot([df.ExpectedValueSolution df.StochasticSolution], w=2, labels=["Expected Value" "Stochastic"])
 xaxis!("Samples")
 yaxis!("Financial gain [DKK]")
 title!("Stochastic vs. Expected Value solution")
 
+sum(x->x>0, df.ExpectedValueSolution, dims=1)
+sum(x->x<0, df.ExpectedValueSolution, dims=1)
+sum(x->x>0, df.StochasticSolution, dims=1)
+sum(x->x<0, df.StochasticSolution, dims=1)
+sum(df.ExpectedValueSolution)
+sum(df.StochasticSolution)
+
 # Histogram to see distribution
-histogram([df.ExpectedValueSolution df.StochasticSolution], nbins=30, labels=permutedims(names(df)[2:3]))
+histogram(df.ExpectedValueSolution, nbins=20, labels="Expected Value", normalize=:probability)
+histogram!(df.StochasticSolution, nbins=20, labels="Stochastic", normalize=:probability)
+xaxis!("Financial Gain [DKK]")
+yaxis!("Probability")
+title!("Stochastic vs. Expected Value solution")
+savefig("histogram.png")

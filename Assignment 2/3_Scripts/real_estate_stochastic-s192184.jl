@@ -1,17 +1,18 @@
 # Author:           Jorge Montalvo Arvizu
 # Student number:   s192184
 
-#Import packages
+# Import packages
 using JuMP
 using Gurobi
 using Printf
 using MathOptFormat
 using CSV
 
-#Areas
+# Areas
 I_names = ["zip2000","zip2800","zip7400","zip8900"]
 I = collect(1:4)
-#Scenarios
+
+# Scenarios
 S = collect(1:12)
 
 # Initial price in DKK/m2 in area i, access by p_init[i]
@@ -43,21 +44,18 @@ model_investment = Model(with_optimizer(Gurobi.Optimizer))
 
 # Variable definition
 @variable(model_investment, x[i in I] >= 0, Int)
-@variable(model_investment, y[i in I], Int)
 @variable(model_investment, η)
 @variable(model_investment, δ[s in S] >= 0)
 
 @objective(model_investment, Max, (1-β)*(-sum(p_init[i]*x[i] for i in I) +
-    sum(prob[s]*p[i,s]*y[i] for i in I for s in S)) +
+    sum(prob[s]*p[i,s]*x[i] for i in I for s in S)) +
     β*(η - (1/(1-α))*sum(prob[s]*δ[s] for s in S)))
 
 # Budget balance
 @constraint(model_investment, budget_balance, sum(p_init[i]*x[i] for i in I) == B)
-# Buy and sell value
-@constraint(model_investment, x_y[i in I], y[i] == x[i])
 # CVaR
 @constraint(model_investment, cvar[s in S], η - (-sum(p_init[i]*x[i] for i in I) +
-    sum(p[i,s]*y[i] for i in I)) <= δ[s])
+    sum(p[i,s]*x[i] for i in I)) <= δ[s])
 
 # Optimize and get objective value
 optimize!(model_investment)

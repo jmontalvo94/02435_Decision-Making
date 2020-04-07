@@ -1,17 +1,18 @@
 # Author:           Jorge Montalvo Arvizu
 # Student number:   s192184
 
-#Import packages
+# Import packages
 using JuMP
 using Gurobi
 using Printf
 using MathOptFormat
 using CSV
 
-#Areas
+# Areas
 I_names = ["zip2000","zip2800","zip7400","zip8900"]
 I = collect(1:4)
-#Scenarios
+
+# Scenarios
 S = collect(1:12)
 
 # Initial price in DKK/m2 in area i, access by p_init[i]
@@ -49,16 +50,13 @@ model_EV = Model(with_optimizer(Gurobi.Optimizer))
 
 # Variable definition
 @variable(model_EV, x[i in I] >= 0, Int)
-@variable(model_EV, y[i in I], Int)
 
 # Objective function
 @objective(model_EV, Max, (-sum(p_init[i]*x[i] for i in I) +
-    sum(p_expected[i]*y[i] for i in I)))
+    sum(p_expected[i]*x[i] for i in I)))
 
 # Budget balance
 @constraint(model_EV, budget_balance, sum(p_init[i]*x[i] for i in I) == B)
-# Buy and sell value
-@constraint(model_EV, x_y[i in I], y[i] == x[i])
 
 # Optimize and get objective value
 optimize!(model_EV)
@@ -83,22 +81,17 @@ else
 end
 
 
-## EV results into stochastic program
+## EV results into stochastic program (same results, could be avoided since it's
+# a 1-stage stochastic program at this moment.)
 
 # Declare Gurobi model
 model_EEV = Model(with_optimizer(Gurobi.Optimizer))
 
-# Variable definition
-@variable(model_EEV, x[i in I] >= 0, Int)
-@variable(model_EEV, y[i in I], Int)
-
 @objective(model_EEV, Max, -sum(p_init[i]*amount[i] for i in I) +
-    sum(prob[s]*p[i,s]*y[i] for i in I for s in S))
+    sum(prob[s]*p[i,s]*amount[i] for i in I for s in S))
 
 # Budget balance
 @constraint(model_EEV, budget_balance, sum(p_init[i]*amount[i] for i in I) == B)
-# Buy and sell value
-@constraint(model_EEV, x_y[i in I], y[i] == amount[i])
 
 # Optimize and get objective value
 optimize!(model_EEV)
